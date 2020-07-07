@@ -73,9 +73,17 @@ fi
 ./build.sh -d -t ios -c x86 -n Release -r $REVISION -F "webrtcbuilds-%to%-%tc%" -P "webrtcbuilds"
 ./build.sh -d -t ios -c x64 -n Release -r $REVISION -F "webrtcbuilds-%to%-%tc%" -P "webrtcbuilds"
 
+rm -rf $OUTDIR/webrtc_ios || true
+
+mkdir -p $OUTDIR/webrtc_ios
+cp -RLf out/src/out/Release_ios_arm64/WebRTC.framework $OUTDIR/webrtc_ios
+
 lipo -create \
     out/webrtcbuilds-ios-arm/lib/Release_ios_arm64/libwebrtc_full.a \
     out/webrtcbuilds-ios-arm/lib/Release_ios_arm/libwebrtc_full.a \
     out/webrtcbuilds-ios-x64/lib/Release_ios_x64/libwebrtc_full.a \
     out/webrtcbuilds-ios-x86/lib/Release_ios_x86/libwebrtc_full.a \
-    -output $OUTDIR
+    -output $OUTDIR/webrtc_ios/WebRTC.framework/WebRTC
+
+cd $OUTDIR/webrtc_ios
+zip -r WebRTCFramework-$REVISION-static.zip .

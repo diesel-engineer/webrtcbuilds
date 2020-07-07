@@ -239,7 +239,7 @@ abseil-cpp|\
 rgba_to_i420_converter.o|\
 psnr_ssim_analyzer.o|\
 frame_analyzer.o|\
-AVCaptureSession+DevicePosition.o|\
+AVCaptureSession\+DevicePosition.o|\
 RTCCameraVideoCapturer.o"
 
   gn gen $outputdir --args="$gn_args"
