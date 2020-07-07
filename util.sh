@@ -232,28 +232,36 @@ device_info_external.obj"
 function compile-unix() {
   local outputdir="$1"
   local gn_args="$2"
-  local blacklist="unittest|examples|/yasm|protobuf_lite|main.o|\
-video_capture_external.o|device_info_external.o"
+  local blacklist="unittest|examples|/yasm|protobuf_lite|clang_x64|\
+main.o|video_capture_external.o|device_info_external.o|\
+boringssl|\
+abseil-cpp|\
+rgba_to_i420_converter.o|\
+psnr_ssim_analyzer.o|\
+frame_analyzer.o|\
+AVCaptureSession+DevicePosition.o|\
+RTCCameraVideoCapturer.o"
 
   gn gen $outputdir --args="$gn_args"
   pushd $outputdir >/dev/null
   ninja -C .
 
-  rm -f libwebrtc_full.a
+  rm -f libwebrtc_full_unstripped.a
   # Produce an ordered objects list by parsing .ninja_deps for strings
   # matching .o files.
   local objlist=$(strings .ninja_deps | grep -o '.*\.o')
-  echo "$objlist" | tr ' ' '\n' | grep -v -E $blacklist >libwebrtc_full.list
   # various intrinsics aren't included by default in .ninja_deps
   local extras=$(find \
     ./obj/third_party/libvpx/libvpx_* \
     ./obj/third_party/libjpeg_turbo/simd_asm \
     ./obj/third_party/boringssl/boringssl_asm -name '*.o')
   echo "$extras" | tr ' ' '\n' >>libwebrtc_full.list
+  echo "$objlist" | tr ' ' '\n' | grep -v -E $blacklist >libwebrtc_full.list
   # generate the archive
-  cat libwebrtc_full.list | xargs ar -crs libwebrtc_full.a
+  cat libwebrtc_full.list | xargs ar -crs libwebrtc_full_unstripped.a
   # generate an index list
-  ranlib libwebrtc_full.a
+  ranlib libwebrtc_full_unstripped.a
+  strip -S libwebrtc_full_unstripped.a -o libwebrtc_full.a
   popd >/dev/null
 }
 
@@ -271,7 +279,7 @@ function compile() {
   local target_cpu="$4"
   local configs="$5"
   local disable_iterator_debug="$6"
-  local common_args="is_component_build=false rtc_include_tests=false treat_warnings_as_errors=false"
+  local common_args="is_component_build=false rtc_include_tests=false treat_warnings_as_errors=false ios_enable_code_signing=false enable_ios_bitcode=false use_xcode_clang=true ios_deployment_target=\"10.0\""
   local target_args="target_os=\"$target_os\" target_cpu=\"$target_cpu\""
 
   [ "$disable_iterator_debug" = 1 ] && common_args+=' enable_iterator_debugging=false'
@@ -281,11 +289,11 @@ function compile() {
     case $platform in
     win)
       # 32-bit build
-      compile-win "out/$cfg" "$common_args $target_args"
+      compile-win "out/${cfg}_${target_os}_${target_cpu}" "$common_args $target_args"
 
       # 64-bit build
       GYP_DEFINES="target_arch=x64 $GYP_DEFINES"
-      compile-win "out/${cfg}_x64" "$common_args $target_args"
+      compile-win "out/${cfg}_${target_os}_${target_cpu}_x64" "$common_args $target_args"
       ;;
     *)
       # On Linux when not cross-compiling, use clang = false and sysroot = false
@@ -297,7 +305,7 @@ function compile() {
       # Debug builds are component builds (shared libraries) by default unless
       # is_component_build=false is passed to gn gen --args. Release builds are
       # static by default.
-      compile-unix "out/$cfg" "$common_args $target_args"
+      compile-unix "out/${cfg}_${target_os}_${target_cpu}" "$common_args $target_args"
       ;;
     esac
   done
@@ -326,6 +334,7 @@ function package::prepare() {
   fi
   pushd $outdir >/dev/null
   # create directory structure
+  rm -rf $package_filename || true
   mkdir -p $package_filename/include $package_filename/lib
   for cfg in $configs; do
     mkdir -p $package_filename/lib/$cfg
